@@ -7,7 +7,6 @@ import datetime
 import copy
 
 
-
 class Trade:
     def __init__(self, **kw):
         self.date = datetime.datetime.strptime(kw['date'], '%Y-%m-%d, %H:%M:%S')
@@ -42,9 +41,22 @@ def do_the_thing(trades):
     return sales
 
 
+usd_rub_exchange_rate_for_date = {}
+
+
+def get_usd_rub_exchange_rate_for_date(d):
+    if len(usd_rub_exchange_rate_for_date) <= 0:
+        with open('usd_rub.dat') as f:
+            for line in f.read().split('\n'):
+                date_str, rate_str = line.split('\t')
+                rate = decimal.Decimal(rate_str.replace(',', '.').replace(' ', ''))
+                usd_rub_exchange_rate_for_date[date_str.strip()] = rate
+    d_str = d.strftime('%d.%m.%Y')
+    return usd_rub_exchange_rate_for_date[d_str]
+
+
 def main():
     print("hi!")
-
 
 
 class T(unittest.TestCase):
@@ -64,6 +76,11 @@ class T(unittest.TestCase):
         self.assertEqual(len(sales), 2)
 
         print(sales)
+
+    def testRatesDb(self):
+        rate = get_usd_rub_exchange_rate_for_date(datetime.datetime(2018, 7, 27, 9, 33, 38))
+        self.assertEqual(rate, decimal.Decimal('62.9471'))
+
 
 
 
