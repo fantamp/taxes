@@ -126,7 +126,7 @@ def main():
         for sold in t.sold_buyings:
             print('        *', sold, to_rub_str(sold))
             exp_rub += get_usd_rub_exchange_rate_for_date(sold.date) * sold.amount * sold.price
-        print('    Buy = {:0.2f} RUB // Sell = {:0.2f} RUB // Profit = {:0.2f} RUB'.format(exp_rub, inc_rub, inc_rub-exp_rub))
+        print('    Profit: {:0.2f} RUB ({:0.2f} - {:0.2f})'.format(inc_rub-exp_rub, inc_rub, exp_rub))
         print()
     print()
     print('Buyings left:')
