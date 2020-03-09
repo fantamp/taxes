@@ -20,7 +20,8 @@ class Trade:
         self.sold_buyings = []
 
     def __str__(self):
-        return '<Trade {} {} {} {} {}>'.format(self.date, self.kind, self.symbol, self.amount, self.price)
+        dstr = self.date.strftime('%Y-%m-%d')
+        return '<Trade {} {} {} {} per ${}>'.format(dstr, self.kind, self.amount, self.symbol, self.price)
 
     __repr__ = __str__
 
@@ -126,6 +127,7 @@ def main():
             print('        *', sold, to_rub_str(sold))
             exp_rub += get_usd_rub_exchange_rate_for_date(sold.date) * sold.amount * sold.price
         print('    Buy = {:0.2f} RUB // Sell = {:0.2f} RUB // Profit = {:0.2f} RUB'.format(exp_rub, inc_rub, inc_rub-exp_rub))
+        print()
     print()
     print('Buyings left:')
     if len(buyings_left) <= 0:
