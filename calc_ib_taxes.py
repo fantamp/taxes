@@ -31,22 +31,17 @@ def do_the_thing(trades):
     buyings = [copy.copy(t) for t in trades if t.kind == 'buy']
     for s in sales:
         amount_to_find = s.amount
-        while amount_to_find > 0:
-            for i in range(len(buyings)):
-                b_from = buyings[i]
-                if b_from.amount <= 0 or b_from.symbol != s.symbol:
-                    continue
-                b = copy.copy(b_from)
-                if b_from.amount > amount_to_find:
-                    b.amount = amount_to_find
-                else:
-                    b.amount = b_from.amount
-                b_from.amount -= b.amount
-                amount_to_find -= b.amount
-                s.sold_buyings.append(b)
-                if amount_to_find <= 0:
-                    break
+        for b_from in [x for x in buyings if x.symbol == s.symbol]:
+            b = copy.copy(b_from)
+            b.amount = min(b_from.amount, amount_to_find)
+            b_from.amount -= b.amount
+            amount_to_find -= b.amount
+            s.sold_buyings.append(b)
+            if amount_to_find <= 0:
+                break
         buyings = [b for b in buyings if b.amount > 0]
+        if amount_to_find > 0:
+            raise Exception('Not enough buyings to fulfill sale')
     return sales, buyings
 
 
@@ -78,10 +73,6 @@ def get_usd_rub_exchange_rate_for_date(d):
 def extract_trade_from_ib_scv_annual_activity_report_line(line):
     if not line.startswith('Trades,Data,Order,Stocks,USD,'):
         return None
-    symbol_idx = 5
-    date_idx = 6
-    amount_idx = 7
-    price_idx = 9
     for row in csv.reader([line]):
         t = Trade(
             date=row[6],
