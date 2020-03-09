@@ -5,6 +5,9 @@ import unittest
 import decimal
 import datetime
 import copy
+import csv
+import os
+import os.path
 
 
 class Trade:
@@ -47,12 +50,42 @@ usd_rub_exchange_rate_for_date = {}
 def get_usd_rub_exchange_rate_for_date(d):
     if len(usd_rub_exchange_rate_for_date) <= 0:
         with open('usd_rub.dat') as f:
-            for line in f.read().split('\n'):
+            for line in f:
                 date_str, rate_str = line.split('\t')
                 rate = decimal.Decimal(rate_str.replace(',', '.').replace(' ', ''))
                 usd_rub_exchange_rate_for_date[date_str.strip()] = rate
     d_str = d.strftime('%d.%m.%Y')
     return usd_rub_exchange_rate_for_date[d_str]
+
+
+def extract_trade_from_ib_scv_annual_activity_report_line(line):
+    if not line.startswith('Trades,Data,Order,Stocks,USD,'):
+        return None
+    symbol_idx = 5
+    date_idx = 6
+    amount_idx = 7
+    price_idx = 9
+    for row in csv.reader([line]):
+        t = Trade(
+            date=row[6],
+            kind = 'sell' if int(row[7]) < 0 else 'buy',
+            symbol=row[5],
+            amount=abs(int(row[7])),
+            price=row[9])
+    return t
+        
+
+def load_trades_from_dir(dirname):
+    trades = []
+    for fn in os.listdir(dirname):
+        if fn.lower().endswith('.csv'):
+            with open(os.path.join(dirname, fn)) as f:
+                for line in f:
+                    t = extract_trade_from_ib_scv_annual_activity_report_line(line)
+                    if t is not None:
+                        trades.append(t)
+    trades.sort(key=lambda t: t.date)
+    return trades
 
 
 def main():
@@ -80,6 +113,19 @@ class T(unittest.TestCase):
     def testRatesDb(self):
         rate = get_usd_rub_exchange_rate_for_date(datetime.datetime(2018, 7, 27, 9, 33, 38))
         self.assertEqual(rate, decimal.Decimal('62.9471'))
+
+    def testIbReportLine(self):
+        line = 'Trades,Data,Order,Stocks,USD,AAPL,"2019-01-03, 09:54:22",1,143.25,142.19,-143.25,-1,144.25,0,-1.06,O'
+        t = extract_trade_from_ib_scv_annual_activity_report_line(line)
+        self.assertEqual(t.date, datetime.datetime(2019, 1, 3, 9, 54, 22))
+        self.assertEqual(t.kind, 'buy')
+        self.assertEqual(t.symbol, 'AAPL')
+        self.assertEqual(t.amount, 1)
+        self.assertEqual(t.price, decimal.Decimal('142.19'))
+
+    def testLoadFromDir(self):
+        trades = load_trades_from_dir('test_data')
+        self.assertEqual(3, len(trades))
 
 
 
