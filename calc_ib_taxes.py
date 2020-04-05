@@ -57,7 +57,7 @@ def get_usd_rub_exchange_rate_for_date(d):
     def d2key(d):
         return d.strftime('%d.%m.%Y')
     if len(usd_rub_exchange_rate_for_date) <= 0:
-        with open('usd_rub.dat') as f:
+        with open('data/usd_rub.dat') as f:
             prev_date = None
             prev_rate = None
             for line in f:
