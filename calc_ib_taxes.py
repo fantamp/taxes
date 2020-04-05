@@ -46,7 +46,7 @@ def do_the_thing(trades):
                 break
         buyings = [b for b in buyings if b.amount > 0]
         if amount_to_find > 0:
-            raise Exception('Not enough buyings to fulfill sale')
+            raise Exception('Not enough buyings to fulfill sale: {}'.format(s))
     return sales, buyings
 
 
