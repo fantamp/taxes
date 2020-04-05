@@ -15,6 +15,7 @@ import os.path
 # See also:
 # similar IB tax calculation program: https://github.com/manushkin/tax_ib
 
+
 class Trade:
     def __init__(self, **kw):
         self.date = datetime.datetime.strptime(kw['date'], '%Y-%m-%d, %H:%M:%S')
@@ -30,12 +31,20 @@ class Trade:
 
     __repr__ = __str__
 
-class Dividend:
-    def __init__(self, **kw):
-        self.date = datetime.datetime.strptime(kw['date'], '%Y-%m-%d, %H:%M:%S') 
-        self.key = kw['key']
-        self.symbol = kw['symbol']
-        self.amount = decimal.Decimal(dw['amount'])
+
+class MoneyInOut:
+    def __init__(self, rec, reason):
+        self.reason = reason
+        self.date = datetime.datetime.strptime(rec['Date'], '%Y-%m-%d') 
+        self.key = rec['Description']
+        self.symbol = self.key.partition('(')[0].strip()
+        self.amount = decimal.Decimal(rec['Amount'])
+        self.withholdings = []
+
+    def __str__(self):
+        dstr = self.date.strftime('%Y-%m-%d')
+        return '<{} {} {} {}>'.format(self.reason, dstr, self.symbol, self.amount)
+
 
 
 def read_report(f):
@@ -48,7 +57,10 @@ def read_report(f):
             flush()
             table_name, records, keys = (row[0], [], row)
         elif row[1] == 'Data':
-            records.append(dict(zip(keys, row)))
+            rec = dict(zip(keys, row))
+            if table_name in ('Dividends', 'Withholding Tax') and rec['Currency'] == 'Total':
+                continue
+            records.append(rec)
     flush()
     return tables
 
@@ -70,6 +82,15 @@ def do_the_thing(trades):
         if amount_to_find > 0:
             raise Exception('Not enough buyings to fulfill sale: {}'.format(s))
     return sales, buyings
+
+
+def calc_divs(raw_divs, withholdings):
+    res = []
+    for d1 in raw_divs:
+        d2 = copy.copy(d1)
+        d2.withholdings = [w for w in withholdings if w.symbol == d2.symbol and w.date == d2.date]
+        res.append(d2)
+    return res
 
 
 usd_rub_exchange_rate_for_date = {}
@@ -110,16 +131,24 @@ def trade_from_report_rec(rec):
     return t
 
 
-def load_trades_from_dir(dirname):
+def load_data_from_dir(dirname):
     trades = []
-    for fn in os.listdir(dirname):
-        if fn.lower().endswith('.csv'):
-            with open(os.path.join(dirname, fn)) as f:
-                for rec in read_report(f)['Trades']:
-                    t = trade_from_report_rec(rec)
-                    trades.append(t)
-    trades.sort(key=lambda t: t.date)
-    return trades
+    divs = []
+    withholdings = []
+    files_names = [x for x in os.listdir(dirname) if x.lower().endswith('.csv')]
+    for fn in files_names:
+        with open(os.path.join(dirname, fn)) as f:
+            report = read_report(f)
+            print(report.keys())
+            for rec in report['Trades']:
+                t = trade_from_report_rec(rec)
+                trades.append(t)
+            divs += [MoneyInOut(rec, 'Dividend') for rec in report['Dividends']]
+            withholdings += [MoneyInOut(rec, 'Withholding') for rec in report['Withholding Tax']]
+    trades.sort(key=lambda x: (x.date, x.symbol))
+    divs.sort(key=lambda x: (x.date, x.symbol))
+    withholdings.sort(key=lambda x: (x.date, x.symbol))
+    return trades, divs, withholdings
 
 
 def main():
@@ -127,7 +156,7 @@ def main():
         rate = get_usd_rub_exchange_rate_for_date(t.date)
         return '{:0.2f} RUB ({} * {} * {})'.format(t.amount * t.price * rate, t.amount, t.price, rate)
 
-    trades = load_trades_from_dir('ib_reports')
+    trades, divs, withholdings = load_data_from_dir('ib_reports')
     print('All trades:')
     for t in trades:
         print('    {}'.format(t))
@@ -151,6 +180,18 @@ def main():
         print('(none)')
     for t in buyings_left:
         print(t)
+    print()
+    print('Dividends:')
+    for div in calc_divs(divs, withholdings):
+        print('    {}'.format(div))
+        print('        Withholdings:')
+        total = decimal.Decimal(0)
+        for w in div.withholdings:
+            print('            {}'.format(w))
+            total += w.amount
+        print('            Total: {}'.format(total))
+        print()
+        
 
 
 class T(unittest.TestCase):
@@ -183,7 +224,7 @@ class T(unittest.TestCase):
             self.assertEqual(tables['Trades'][0]['T. Price'], '143.25')
 
     def testLoadFromDir(self):
-        trades = load_trades_from_dir('test_data')
+        trades, _, _ = load_data_from_dir('test_data')
         self.assertEqual(3, len(trades))
 
 

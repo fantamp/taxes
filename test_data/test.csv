@@ -97,3 +97,13 @@ Notes/Legal Notes,Data,Legal Notes,"For trades executed on either the Australian
 Notes/Legal Notes,Data,Legal Notes,"For All Options Trades Executed on the Stock Exchange of Hong Kong (""SEHK""): (a) Options can involve a high degree of risk and may not be suitable for every investor. Investors should ensure they understand those risks before participating in the options market. (b) All options contracts executed on the SEHK were executed by Timber Hill Securities Hong Kong on behalf of Interactive Brokers LLC. (c) In the event of a default committed by Interactive Brokers LLC resulting in the client suffering any pecuniary loss, the client shall have a right to claim under the Investor Compensation Fund established under the Hong Kong Securities and Futures Ordinance, subject to the terms of the Investor Compensation Fund from time to time. (d) All Exchange Traded Options Business made for or on behalf of a client shall be subject to the relevant provisions of the constitution, Rules of The Stock Exchange of Hong Kong Limited (""SEHK Rules""), regulations, the Articles, customs and usages of SEHK, the Options Trading Rules, the Clearing Rules of SEOCH, the CCASS Rules and the laws of Hong Kong, which shall be binding on both Interactive Brokers LLC and the client."
 Notes/Legal Notes,Data,Legal Notes,"Deposits held away from Interactive Brokers LLC may not qualify under SIPC protection.  Also, futures and options on futures are not covered by SIPC."
 Notes/Legal Notes,Data,,SIPC Member
+Dividends,Header,Currency,Date,Description,Amount
+Dividends,Data,USD,2018-08-06,BND(US9219378356) Cash Dividend 0.18685800 USD per Share (Mixed Income),3.36
+Dividends,Data,USD,2018-08-16,AAPL(US0378331005) Cash Dividend 0.73000000 USD per Share (Ordinary Dividend),0.73
+Dividends,Data,USD,2018-09-06,BND (US9219378356) Cash Dividend USD 0.18764 (Ordinary Dividend),3.38
+Withholding Tax,Header,Currency,Date,Description,Amount,Code
+Withholding Tax,Data,USD,2018-08-06,BND(US9219378356) Cash Dividend 0.18685800 USD per Share - US Tax,-1.01,
+Withholding Tax,Data,USD,2018-08-06,BND(US9219378356) Cash Dividend 0.18685800 USD per Share - US Tax,1.01,
+Withholding Tax,Data,USD,2018-08-06,BND(US9219378356) Cash Dividend 0.18685800 USD per Share - US Tax,-0.34,
+Withholding Tax,Data,USD,2018-08-16,AAPL(US0378331005) Cash Dividend 0.73000000 USD per Share - US Tax,-0.07,
+Withholding Tax,Data,USD,2018-09-06,BND (US9219378356) Cash Dividend USD 0.18764 - US Tax,-0.34,
