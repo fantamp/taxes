@@ -79,12 +79,20 @@ def extract_trade_from_ib_scv_annual_activity_report_line(line):
     if not line.startswith('Trades,Data,Order,Stocks,USD,'):
         return None
     for row in csv.reader([line]):
-        t = Trade(
-            date=row[6],
-            kind = 'sell' if int(row[7]) < 0 else 'buy',
-            symbol=row[5],
-            amount=abs(int(row[7])),
-            price=row[8])
+        if datetime.datetime.strptime(row[6], '%Y-%m-%d, %H:%M:%S') < datetime.datetime.strptime('2019-12-24', '%Y-%m-%d') and row[5] == 'SGOL':
+            t = Trade(
+                date=row[6],
+                kind = 'sell' if int(row[7]) < 0 else 'buy',
+                symbol=row[5],
+                amount=abs(int(row[7])) * 10,
+                price=decimal.Decimal(row[8]) / 10)
+        else:
+            t = Trade(
+                date=row[6],
+                kind='sell' if int(row[7]) < 0 else 'buy',
+                symbol=row[5],
+                amount=abs(int(row[7])),
+                price=row[8])
     return t
         
 
