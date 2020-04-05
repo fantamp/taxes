@@ -26,9 +26,31 @@ class Trade:
 
     def __str__(self):
         dstr = self.date.strftime('%Y-%m-%d')
-        return '<Trade {} {} {} {} per ${}>'.format(dstr, self.kind, self.amount, self.symbol, self.price)
+        return '<Trade {} {} {} {} for ${} per unit>'.format(dstr, self.kind, self.amount, self.symbol, self.price)
 
     __repr__ = __str__
+
+class Dividend:
+    def __init__(self, **kw):
+        self.date = datetime.datetime.strptime(kw['date'], '%Y-%m-%d, %H:%M:%S') 
+        self.key = kw['key']
+        self.symbol = kw['symbol']
+        self.amount = decimal.Decimal(dw['amount'])
+
+
+def read_report(f):
+    table_name, records, tables = (None, None, {})
+    def flush():
+        if table_name is not None:
+            tables[table_name] = records
+    for row in csv.reader(f):
+        if len(row) >= 2 and row[1] == 'Header':
+            flush()
+            table_name, records, keys = (row[0], [], row)
+        elif row[1] == 'Data':
+            records.append(dict(zip(keys, row)))
+    flush()
+    return tables
 
 
 def do_the_thing(trades):
@@ -75,28 +97,25 @@ def get_usd_rub_exchange_rate_for_date(d):
     return usd_rub_exchange_rate_for_date[d_str]
 
 
-def extract_trade_from_ib_scv_annual_activity_report_line(line):
-    if not line.startswith('Trades,Data,Order,Stocks,USD,'):
-        return None
-    for row in csv.reader([line]):
-        t = Trade(
-            date=row[6],
-            kind = 'sell' if int(row[7]) < 0 else 'buy',
-            symbol=row[5],
-            amount=abs(int(row[7])),
-            price=row[8])
-    return t
-        
+def trade_from_report_rec(rec):
+    q = int(rec['Quantity'])
+    return Trade(
+        date=rec['Date/Time'],
+        kind = 'sell' if q < 0 else 'buy',
+        symbol=rec['Symbol'],
+        amount=abs(q),
+        price=rec['T. Price'])
+
 
 def load_trades_from_dir(dirname):
     trades = []
     for fn in os.listdir(dirname):
         if fn.lower().endswith('.csv'):
             with open(os.path.join(dirname, fn)) as f:
-                for line in f:
-                    t = extract_trade_from_ib_scv_annual_activity_report_line(line)
-                    if t is not None:
-                        trades.append(t)
+                for rec in read_report(f)['Trades']:
+                    print(rec)
+                    t = trade_from_report_rec(rec)
+                    trades.append(t)
     trades.sort(key=lambda t: t.date)
     return trades
 
@@ -109,7 +128,7 @@ def main():
     trades = load_trades_from_dir('ib_reports')
     print('All trades:')
     for t in trades:
-        print(t)
+        print('    {}'.format(t))
     print()
     sales, buyings_left = do_the_thing(trades)
     print('Sales:')
@@ -145,8 +164,6 @@ class T(unittest.TestCase):
             trades.append(trade)
         self.assertEqual(len(trades), 4)
         sales, b_left = do_the_thing(trades)
-        print(sales)
-        print(b_left)
         self.assertEqual(len(sales), 2)
         self.assertEqual(len(b_left), 1)
 
@@ -157,14 +174,11 @@ class T(unittest.TestCase):
         rate = get_usd_rub_exchange_rate_for_date(datetime.datetime(2020, 1, 5, 9, 33, 38))
         self.assertEqual(rate, decimal.Decimal('61.9057'))
 
-    def testIbReportLine(self):
-        line = 'Trades,Data,Order,Stocks,USD,AAPL,"2019-01-03, 09:54:22",1,143.25,142.19,-143.25,-1,144.25,0,-1.06,O'
-        t = extract_trade_from_ib_scv_annual_activity_report_line(line)
-        self.assertEqual(t.date, datetime.datetime(2019, 1, 3, 9, 54, 22))
-        self.assertEqual(t.kind, 'buy')
-        self.assertEqual(t.symbol, 'AAPL')
-        self.assertEqual(t.amount, 1)
-        self.assertEqual(t.price, decimal.Decimal('143.25'))
+    def testIbReportReadTables(self):
+        with open('test_data/test.csv') as f:
+            tables = read_report(f)
+            self.assertEqual(len(tables), 5)
+            self.assertEqual(tables['Trades'][0]['T. Price'], '143.25')
 
     def testLoadFromDir(self):
         trades = load_trades_from_dir('test_data')
