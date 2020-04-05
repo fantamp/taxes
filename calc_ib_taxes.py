@@ -99,12 +99,15 @@ def get_usd_rub_exchange_rate_for_date(d):
 
 def trade_from_report_rec(rec):
     q = int(rec['Quantity'])
-    return Trade(
+    t = Trade(
         date=rec['Date/Time'],
         kind = 'sell' if q < 0 else 'buy',
         symbol=rec['Symbol'],
         amount=abs(q),
         price=rec['T. Price'])
+    if t.symbol == 'SGOL' and t.date < datetime.datetime.strptime('2019-12-24', '%Y-%m-%d'):
+        t.amount *= 10
+    return t
 
 
 def load_trades_from_dir(dirname):
@@ -113,7 +116,6 @@ def load_trades_from_dir(dirname):
         if fn.lower().endswith('.csv'):
             with open(os.path.join(dirname, fn)) as f:
                 for rec in read_report(f)['Trades']:
-                    print(rec)
                     t = trade_from_report_rec(rec)
                     trades.append(t)
     trades.sort(key=lambda t: t.date)
