@@ -1,6 +1,5 @@
 #!/usr/bin/env python3
 
-
 import unittest
 import decimal
 import datetime
@@ -9,6 +8,12 @@ import csv
 import os
 import os.path
 
+
+# Where to get currency exchange rate:
+# https://cbr.ru/currency_base/dynamics/?UniDbQuery.Posted=True&UniDbQuery.mode=1&UniDbQuery.date_req1=&UniDbQuery.date_req2=&UniDbQuery.VAL_NM_RQ=R01235&UniDbQuery.From=01.01.2019&UniDbQuery.To=31.12.2019
+#
+# See also:
+# similar IB tax calculation program: https://github.com/manushkin/tax_ib
 
 class Trade:
     def __init__(self, **kw):
@@ -79,7 +84,7 @@ def extract_trade_from_ib_scv_annual_activity_report_line(line):
             kind = 'sell' if int(row[7]) < 0 else 'buy',
             symbol=row[5],
             amount=abs(int(row[7])),
-            price=row[9])
+            price=row[8])
     return t
         
 
@@ -159,7 +164,7 @@ class T(unittest.TestCase):
         self.assertEqual(t.kind, 'buy')
         self.assertEqual(t.symbol, 'AAPL')
         self.assertEqual(t.amount, 1)
-        self.assertEqual(t.price, decimal.Decimal('142.19'))
+        self.assertEqual(t.price, decimal.Decimal('143.25'))
 
     def testLoadFromDir(self):
         trades = load_trades_from_dir('test_data')
