@@ -27,7 +27,8 @@ class Trade:
 
     def __str__(self):
         dstr = self.date.strftime('%Y-%m-%d')
-        return '<Trade {} {} {} {} for ${} per unit>'.format(dstr, self.kind, self.amount, self.symbol, self.price)
+        return '{} {} {} {} {}'.format(dstr, self.kind, self.amount, self.symbol, m(self.price))
+        #return '<Trade {} {} {} {} for ${} per unit>'.format(dstr, self.kind, self.amount, self.symbol, self.price)
 
     __repr__ = __str__
 
@@ -43,8 +44,11 @@ class MoneyInOut:
 
     def __str__(self):
         dstr = self.date.strftime('%Y-%m-%d')
-        return '<{} {} {} {}>'.format(self.reason, dstr, self.symbol, self.amount)
+        return '<{} {} {} {}>'.format(self.reason, dstr, self.symbol, m(self.amount))
 
+
+def m(x):
+    return '${:0.2f}'.format(x) if x >= 0 else '-${:0.2f}'.format(x * -1)
 
 
 def read_report(f):
@@ -139,7 +143,6 @@ def load_data_from_dir(dirname):
     for fn in files_names:
         with open(os.path.join(dirname, fn)) as f:
             report = read_report(f)
-            print(report.keys())
             for rec in report['Trades']:
                 t = trade_from_report_rec(rec)
                 trades.append(t)
@@ -162,26 +165,29 @@ def main():
         print('    {}'.format(t))
     print()
     sales, buyings_left = do_the_thing(trades)
-    print('Sales:')
+    print('Sales ({}):'.format(len(sales)))
     for t in sales:
         inc_rub = get_usd_rub_exchange_rate_for_date(t.date) * t.amount * t.price
-        print(t)
-        print('    Income: {}'.format(to_rub_str(t)))
+        inc_usd = t.price * t.amount
+        print('{}: {} {}x${:0.2f}'.format(t.date.strftime('%Y-%m-%d'), t.symbol, t.amount, t.price))
+        print('    Income: {} // {}'.format(m(inc_usd), to_rub_str(t)))
         print('    What was sold:')
         exp_rub = decimal.Decimal(0)
+        exp_usd = decimal.Decimal(0)
         for sold in t.sold_buyings:
-            print('        *', sold, to_rub_str(sold))
+            print('        * {} // {}'.format(sold, to_rub_str(sold)))
+            exp_usd += sold.amount * sold.price
             exp_rub += get_usd_rub_exchange_rate_for_date(sold.date) * sold.amount * sold.price
-        print('    Profit: {:0.2f} RUB ({:0.2f} - {:0.2f})'.format(inc_rub-exp_rub, inc_rub, exp_rub))
+        print('    Profit: {} // {:0.2f} RUB ({:0.2f} - {:0.2f})'.format(m(inc_usd-exp_usd), inc_rub-exp_rub, inc_rub, exp_rub))
         print()
     print()
     print('Buyings left:')
     if len(buyings_left) <= 0:
         print('(none)')
     for t in buyings_left:
-        print(t)
+        print('    {}'.format(t))
     print()
-    print('Dividends:')
+    print('Dividends ({}):'.format(len(divs)))
     for div in calc_divs(divs, withholdings):
         print('    {}'.format(div))
         print('        Withholdings:')
