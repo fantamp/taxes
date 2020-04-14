@@ -43,7 +43,7 @@ class MoneyInOut:
         self.withholdings = []
 
     def __str__(self):
-        dstr = self.date.strftime('%Y-%m-%d')
+        dstr = self.date.strftime('%d.%m.%Y')
         return '<{} {} {} {}>'.format(self.reason, dstr, self.symbol, m(self.amount))
 
 
@@ -189,13 +189,14 @@ def main():
     print()
     print('Dividends ({}):'.format(len(divs)))
     for div in calc_divs(divs, withholdings):
-        print('    {}'.format(div))
+        withholdings_total = abs(sum([w.amount for w in div.withholdings]))
+        print('    Dividends from {} on {}, sum: {}, withheld: {}'.format(div.symbol, div.date.strftime('%d.%m.%Y'), m(div.amount), m(withholdings_total)))
         print('        Withholdings:')
         total = decimal.Decimal(0)
         for w in div.withholdings:
             print('            {}'.format(w))
             total += w.amount
-        print('            Total: {}'.format(total))
+        print('            Total: {}'.format(m(total)))
         print()
         
 
