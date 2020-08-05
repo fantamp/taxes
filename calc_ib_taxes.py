@@ -15,6 +15,9 @@ import os.path
 # See also:
 # similar IB tax calculation program: https://github.com/manushkin/tax_ib
 
+# Some docs
+# - https://journal-tinkoff-ru.turbopages.org/s/journal.tinkoff.ru/ask/securities-taxes/
+
 
 class Trade:
     def __init__(self, **kw):
