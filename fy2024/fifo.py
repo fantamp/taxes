@@ -1,6 +1,8 @@
 import pandas as pd
 from collections import deque
 
+# Backup could be found at: https://drive.google.com/drive/folders/1c5ZRynDdznRKNePPgnE1aKJso1Ckdgnz
+# Originally dowlnoaded from https://www.equateplus.com/EquatePlusParticipant/?login
 portfolio_path = "/Users/fantamp/Library/Mobile Documents/com~apple~CloudDocs/Streams/Финансы 💰/Налоги/Налоги 2025 (FY24)/Yandex_Nebius Options/PortfolioDetails _5503097.xlsx"
 transactions_path = "/Users/fantamp/Library/Mobile Documents/com~apple~CloudDocs/Streams/Финансы 💰/Налоги/Налоги 2025 (FY24)/Yandex_Nebius Options/CompletedTransactions_5503097.xlsx"
 
@@ -144,7 +146,9 @@ fifo_balance = 0
 for idx, row in fifo_history_df.iterrows():
     fifo_balance += row["change"]
     fifo_history_df.at[idx, "fifo_balance"] = fifo_balance
-    fifo_history_df["market_sum"] = fifo_history_df["change"] * fifo_history_df["grant_price"]
+    fifo_history_df["market_sum"] = (
+        fifo_history_df["change"] * fifo_history_df["grant_price"]
+    )
 
 # Красивый вывод в консоль и сохранение в CSV
 pd.set_option("display.max_columns", None)
