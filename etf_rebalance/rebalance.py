@@ -22,6 +22,28 @@ ETFTable = db.table("etf_prices")
 FXTable = db.table("fx_rates")
 
 
+@dataclass
+class ETF:
+    ticker: str
+    name: str
+    isin: str
+    current_price: float
+    yahoo_ticker: str
+    currency: str
+
+
+@dataclass
+class PortfolioETF:
+    etf: ETF
+    current_holdings: int
+    target_weight_percent: float
+
+
+@dataclass
+class Portfolio:
+    items: List[PortfolioETF]
+
+
 def save_etf_price(ticker, price):
     ETFTable.upsert(
         {"ticker": ticker, "value": price, "timestamp": datetime.now(UTC).isoformat()},
@@ -31,8 +53,19 @@ def save_etf_price(ticker, price):
 
 def get_etf_price(ticker, fallback):
     row = ETFTable.get(Query().ticker == ticker)
-    if row:
+    if row and not is_expired(datetime.fromisoformat(row["timestamp"])):
         return row["value"]
+
+    # Try to fetch from Yahoo Finance if data is expired or missing
+    etf = next((e for e in etf_list if e.ticker == ticker), None)
+    if etf and etf.yahoo_ticker:
+        try:
+            return fetch_yahoo_price(etf)
+        except Exception:
+            if row:  # Return stale data if fetch fails
+                print(f"WARNING: Could not fetch price for {ticker}, using stale data.")
+                return row["value"]
+
     return fallback
 
 
@@ -65,26 +98,12 @@ def is_expired(ts, max_age_minutes=60):
     return not ts or (datetime.now(UTC) - ts > timedelta(minutes=max_age_minutes))
 
 
-@dataclass
-class ETF:
-    ticker: str
-    name: str
-    isin: str
-    current_price: float
-    yahoo_ticker: str
-    currency: str
-
-
-@dataclass
-class PortfolioETF:
-    etf: ETF
-    current_holdings: int
-    target_weight_percent: float
-
-
-@dataclass
-class Portfolio:
-    items: List[PortfolioETF]
+def fetch_yahoo_price(etf: ETF) -> float:
+    """Fetch latest price from Yahoo Finance for given ETF."""
+    yf_ticker = yf.Ticker(etf.yahoo_ticker)
+    latest_price = yf_ticker.history(period="1d")["Close"].iloc[-1]
+    save_etf_price(etf.ticker, latest_price)
+    return latest_price
 
 
 def rebalance_portfolio(
@@ -179,19 +198,13 @@ updated_prices = {}
 if args.fetch:
     print("Fetching latest prices from Yahoo Finance...")
     for etf in etf_list:
-        row = ETFTable.get(Query().ticker == etf.ticker)
-        assert isinstance(row, dict)
-        ts = datetime.fromisoformat(row["timestamp"]) if row else None
-        if is_expired(ts):
-            yf_ticker = yf.Ticker(etf.yahoo_ticker)
-            try:
-                latest_price = yf_ticker.history(period="1d")["Close"].iloc[-1]
-                print(f"{etf.ticker}: {latest_price:.2f} EUR")
-                updated_prices[etf.ticker] = latest_price
-                save_etf_price(etf.ticker, latest_price)
-            except Exception:
-                continue
-            time.sleep(1.1)
+        try:
+            latest_price = fetch_yahoo_price(etf)
+            print(f"{etf.ticker}: {latest_price:.2f} EUR")
+            updated_prices[etf.ticker] = latest_price
+        except Exception:
+            continue
+        time.sleep(1.1)
     if updated_prices:
         print("Saving updated prices to cache.")
 
