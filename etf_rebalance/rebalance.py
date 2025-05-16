@@ -13,9 +13,7 @@ from datetime import datetime, timedelta, UTC
 import time
 
 
-TO_INVEST = 160000 - 51000  # Amount to invest in EUR
 CACHE_DIR = os.path.join(os.path.dirname(__file__), "cache_db")
-
 os.makedirs(CACHE_DIR, exist_ok=True)
 db = TinyDB(os.path.join(CACHE_DIR, "db.json"))
 ETFTable = db.table("etf_prices")
@@ -51,19 +49,75 @@ def save_etf_price(ticker, price):
     )
 
 
-def get_etf_price(ticker, fallback):
+def get_etf_definition(ticker: str) -> ETF | None:
+    """Get ETF definition by ticker. Single source of truth for ETF data."""
+    fallback_prices = {
+        "LCUJ": 15.86,
+        "IMAE": 78.58,
+        "CPXJ": 160.12,
+        "SXR2": 184.92,
+    }
+
+    definitions = {
+        "LCUJ": ETF(
+            "LCUJ",
+            "Amundi MSCI Japan UCITS ETF Acc",
+            "LU1781541252",
+            fallback_prices["LCUJ"],  # Use fallback price as initial
+            "LCUJ.AS",
+            "EUR",
+        ),
+        "IMAE": ETF(
+            "IMAE",
+            "iShares Core MSCI Europe UCITS ETF Acc",
+            "IE00B4K48X80",
+            fallback_prices["IMAE"],
+            "IMAE.AS",
+            "EUR",
+        ),
+        "CPXJ": ETF(
+            "CPXJ",
+            "iShares Core MSCI Pacific ex Japan UCITS ETF Acc",
+            "IE00B52MJY50",
+            fallback_prices["CPXJ"],
+            "CPXJ.AS",
+            "EUR",
+        ),
+        "SXR2": ETF(
+            "SXR2",
+            "iShares MSCI Canada UCITS ETF Acc",
+            "IE00B52SF786",
+            fallback_prices["SXR2"],
+            "SXR2.DE",
+            "EUR",
+        ),
+    }
+    return definitions.get(ticker)
+
+
+def get_etf_price(ticker: str, fallback: float) -> float:
+    """Get ETF price from cache or Yahoo Finance."""
     row = ETFTable.get(Query().ticker == ticker)
-    if row and not is_expired(datetime.fromisoformat(row["timestamp"])):
+    if (
+        row
+        and isinstance(row, dict)
+        and not is_expired(datetime.fromisoformat(row["timestamp"]))
+    ):
         return row["value"]
 
     # Try to fetch from Yahoo Finance if data is expired or missing
-    etf = next((e for e in etf_list if e.ticker == ticker), None)
+    etf = get_etf_definition(ticker)
     if etf and etf.yahoo_ticker:
         try:
-            return fetch_yahoo_price(etf)
-        except Exception:
-            if row:  # Return stale data if fetch fails
-                print(f"WARNING: Could not fetch price for {ticker}, using stale data.")
+            yf_ticker = yf.Ticker(etf.yahoo_ticker)
+            latest_price = yf_ticker.history(period="1d")["Close"].iloc[-1]
+            save_etf_price(ticker, latest_price)
+            return latest_price
+        except Exception as e:
+            if row and isinstance(row, dict):  # Return stale data if fetch fails
+                print(
+                    f"WARNING: Could not fetch price for {ticker}, using stale data: {e}"
+                )
                 return row["value"]
 
     return fallback
@@ -95,7 +149,11 @@ def get_fx_rate(base: str, target: str) -> float:
 
 
 def is_expired(ts, max_age_minutes=60):
-    return not ts or (datetime.now(UTC) - ts > timedelta(minutes=max_age_minutes))
+    if not ts:
+        return True
+    if not ts.tzinfo:
+        ts = ts.replace(tzinfo=UTC)
+    return datetime.now(UTC) - ts > timedelta(minutes=max_age_minutes)
 
 
 def fetch_yahoo_price(etf: ETF) -> float:
@@ -107,7 +165,7 @@ def fetch_yahoo_price(etf: ETF) -> float:
 
 
 def rebalance_portfolio(
-    portfolio: Portfolio, new_investment_amount: float
+    portfolio: Portfolio, new_investment_amount: float, target_currency: str
 ) -> pd.DataFrame:
     current_total_value = sum(
         item.etf.current_price * item.current_holdings for item in portfolio.items
@@ -141,92 +199,6 @@ def rebalance_portfolio(
     return pd.DataFrame(results)
 
 
-parser = argparse.ArgumentParser()
-parser.add_argument(
-    "--fetch", action="store_true", help="Fetch latest ETF prices from Yahoo Finance"
-)
-parser.add_argument(
-    "--target-currency",
-    type=str,
-    default="EUR",
-    help="Target currency for output values (default: EUR)",
-)
-args = parser.parse_args()
-
-target_currency = args.target_currency.upper()
-
-
-etf_list = [
-    ETF(
-        "LCUJ",
-        "Amundi MSCI Japan UCITS ETF Acc",
-        "LU1781541252",
-        get_etf_price("LCUJ", 15.86),
-        "LCUJ.AS",
-        "EUR",
-    ),
-    ETF(
-        "IMAE",
-        "iShares Core MSCI Europe UCITS ETF Acc",
-        "IE00B4K48X80",
-        get_etf_price("IMAE", 78.58),
-        "IMAE.AS",
-        "EUR",
-    ),
-    ETF(
-        "CPXJ",
-        "iShares Core MSCI Pacific ex Japan UCITS ETF Acc",
-        "IE00B52MJY50",
-        get_etf_price("CPXJ", 160.12),
-        "CPXJ.AS",
-        "EUR",
-    ),
-    ETF(
-        "SXR2",
-        "iShares MSCI Canada UCITS ETF Acc",
-        "IE00B52SF786",
-        get_etf_price("SXR2", 184.92),
-        "SXR2.DE",
-        "EUR",
-    ),
-]
-
-etf_map = {etf.ticker: etf for etf in etf_list}
-
-updated_prices = {}
-
-if args.fetch:
-    print("Fetching latest prices from Yahoo Finance...")
-    for etf in etf_list:
-        try:
-            latest_price = fetch_yahoo_price(etf)
-            print(f"{etf.ticker}: {latest_price:.2f} EUR")
-            updated_prices[etf.ticker] = latest_price
-        except Exception:
-            continue
-        time.sleep(1.1)
-    if updated_prices:
-        print("Saving updated prices to cache.")
-
-for etf in etf_list:
-    row = FXTable.get(Query().pair == f"{etf.currency}{target_currency}")
-    assert row is None or isinstance(row, dict)
-    ts = datetime.fromisoformat(row["timestamp"]) if row else None
-    if is_expired(ts):
-        fx_rate = get_fx_rate(etf.currency, target_currency)
-    else:
-        fx_rate = row["value"] if row else 1.0
-    etf.current_price *= fx_rate
-
-
-portfolio_items = [
-    PortfolioETF(etf_map["IMAE"], 600, 58),
-    PortfolioETF(etf_map["LCUJ"], 0, 22),
-    PortfolioETF(etf_map["CPXJ"], 0, 12),
-    PortfolioETF(etf_map["SXR2"], 0, 8),
-]
-
-
 def print_result(res: pd.DataFrame):
     console = Console()
     table = Table(show_header=True, header_style="bold magenta")
@@ -242,7 +214,92 @@ def print_result(res: pd.DataFrame):
     console.print(table)
 
 
-portfolio = Portfolio(items=portfolio_items)
-rebalance_result = rebalance_portfolio(portfolio, new_investment_amount=TO_INVEST)
+def get_etf_list(target_currency: str) -> List[ETF]:
+    """Get list of ETFs with current prices."""
+    etfs: List[ETF] = []
+    for ticker in ["LCUJ", "IMAE", "CPXJ", "SXR2"]:
+        etf = get_etf_definition(ticker)
+        if etf is not None:
+            etfs.append(etf)
 
-print_result(rebalance_result)
+    # Set current prices
+    for etf in etfs:
+        etf.current_price = get_etf_price(
+            etf.ticker, fallback=etf.current_price
+        )  # Use initial price as fallback
+
+    # Apply FX rates
+    for etf in etfs:
+        row = FXTable.get(Query().pair == f"{etf.currency}{target_currency}")
+        if row and isinstance(row, dict):
+            ts = datetime.fromisoformat(row["timestamp"]) if row else None
+            if is_expired(ts):
+                fx_rate = get_fx_rate(etf.currency, target_currency)
+            else:
+                fx_rate = row["value"]
+        else:
+            fx_rate = 1.0
+        etf.current_price *= fx_rate
+
+    return etfs
+
+
+def get_portfolio_items(etf_map) -> List[PortfolioETF]:
+    return [
+        PortfolioETF(etf_map["IMAE"], 1180, 58),
+        PortfolioETF(etf_map["LCUJ"], 0, 22),
+        PortfolioETF(etf_map["CPXJ"], 0, 12),
+        PortfolioETF(etf_map["SXR2"], 0, 8),
+    ]
+
+
+def parse_args():
+    parser = argparse.ArgumentParser()
+    parser.add_argument(
+        "--fetch",
+        action="store_true",
+        help="Fetch latest ETF prices from Yahoo Finance",
+    )
+    parser.add_argument(
+        "--target-currency",
+        type=str,
+        default="EUR",
+        help="Target currency for output values (default: EUR)",
+    )
+    return parser.parse_args()
+
+
+def main():
+    TO_INVEST = 200000 - 51000 - 50000  # Amount to invest in EUR
+    args = parse_args()
+    target_currency = args.target_currency.upper()
+
+    etf_list = get_etf_list(target_currency)
+    etf_map = {etf.ticker: etf for etf in etf_list}
+
+    updated_prices = {}
+    if args.fetch:
+        print("Fetching latest prices from Yahoo Finance...")
+        for etf in etf_list:
+            try:
+                latest_price = fetch_yahoo_price(etf)
+                print(f"{etf.ticker}: {latest_price:.2f} EUR")
+                updated_prices[etf.ticker] = latest_price
+            except Exception:
+                continue
+            time.sleep(1.1)
+        if updated_prices:
+            print("Saving updated prices to cache.")
+
+    portfolio_items = get_portfolio_items(etf_map)
+    portfolio = Portfolio(items=portfolio_items)
+    rebalance_result = rebalance_portfolio(
+        portfolio, new_investment_amount=TO_INVEST, target_currency=target_currency
+    )
+    print(f"Total value: {rebalance_result['Target Value'].sum():.0f} EUR")
+    print(f"To invest: {TO_INVEST:.0f} EUR")
+    print_result(rebalance_result)
+
+
+if __name__ == "__main__":
+    main()
